@@ -268,7 +268,7 @@ export default function AllEntriesScreen() {
                 </View>
                 <View style={styles.row}>
                   <Text style={styles.label}>50% Share</Text>
-                  <Text style={styles.value}>₹ -{item.share}</Text>
+                  <Text style={styles.value}>₹ {item.share}</Text>
                 </View>
                 <View style={styles.row}>
                   <Text style={styles.label}>Gas</Text>
