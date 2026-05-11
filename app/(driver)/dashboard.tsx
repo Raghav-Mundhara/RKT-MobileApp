@@ -1,0 +1,385 @@
+import React, { useState, useCallback } from "react";
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  ActivityIndicator,
+  RefreshControl,
+} from "react-native";
+import api from "../../services/api";
+import { DriverAnalytics, Timeframe } from "../../types";
+import { Ionicons } from "@expo/vector-icons";
+import { useFocusEffect } from "expo-router";
+
+const TIMEFRAMES: { label: string; value: Timeframe }[] = [
+  { label: "Today", value: "today" },
+  { label: "Week", value: "week" },
+  { label: "Month", value: "month" },
+  { label: "Year", value: "year" },
+  { label: "All", value: "all" },
+];
+
+export default function DriverDashboard() {
+  const [data, setData] = useState<DriverAnalytics | null>(null);
+  const [timeframe, setTimeframe] = useState<Timeframe>("month");
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const fetchData = async (tf: Timeframe, isRefresh = false) => {
+    try {
+      if (isRefresh) setRefreshing(true);
+      else if (!data) setLoading(true);
+
+      const { data: res } = await api.get<DriverAnalytics>("/analytics/my", {
+        params: { timeframe: tf },
+      });
+      setData(res);
+    } catch (error) {
+      console.error("Dashboard error:", error);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchData(timeframe);
+    }, [timeframe])
+  );
+
+  if (loading && !data) {
+    return (
+      <View style={styles.center}>
+        <ActivityIndicator size="large" color="#3b82f6" />
+      </View>
+    );
+  }
+
+  const summary = data?.summary;
+  const platforms = data?.platformBreakdown;
+
+  return (
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={{ paddingBottom: 30 }}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={() => fetchData(timeframe, true)}
+          tintColor="#3b82f6"
+        />
+      }
+    >
+      <Text style={styles.title}>My Performance</Text>
+
+      {/* Timeframe Selector */}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={styles.timeframeRow}
+      >
+        {TIMEFRAMES.map((tf) => (
+          <TouchableOpacity
+            key={tf.value}
+            style={[
+              styles.tfBtn,
+              timeframe === tf.value && styles.tfBtnActive,
+            ]}
+            onPress={() => setTimeframe(tf.value)}
+          >
+            <Text
+              style={[
+                styles.tfText,
+                timeframe === tf.value && styles.tfTextActive,
+              ]}
+            >
+              {tf.label}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
+
+      {/* Running Balance Banner */}
+      {data && (
+        <View style={styles.runningBalanceCard}>
+          <View>
+            <Text style={styles.runningBalanceLabel}>Unsettled Balance</Text>
+            <Text style={{
+              ...styles.runningBalanceValue, 
+              color: data.runningBalance >= 0 ? "#ef4444" :"#22c55e"
+            }}>
+              {data.runningBalance >= 0 ? `Pay Owner: ₹${data.runningBalance}` : `Receive: ₹${Math.abs(data.runningBalance)}`}
+            </Text>
+          </View>
+          <Ionicons 
+            name="wallet" 
+            size={40} 
+            color={data.runningBalance >= 0 ?  "#ef4444":"#22c55e" } 
+            style={{ opacity: 0.8 }} 
+          />
+        </View>
+      )}
+
+      {/* Summary Cards */}
+      <View style={styles.grid}>
+        <View style={[styles.statCard, { borderLeftColor: "#3b82f6" }]}>
+          <Ionicons name="cash-outline" size={24} color="#3b82f6" />
+          <Text style={styles.statLabel}>Total Fare</Text>
+          <Text style={styles.statValue}>
+            ₹{(summary?.totalFare || 0).toLocaleString("en-IN")}
+          </Text>
+        </View>
+
+        <View style={[styles.statCard, { borderLeftColor: "#22c55e" }]}>
+          <Ionicons name="trending-up" size={24} color="#22c55e" />
+          <Text style={styles.statLabel}>My Share</Text>
+          <Text style={styles.statValue}>
+            ₹{(summary?.share || 0).toLocaleString("en-IN")}
+          </Text>
+        </View>
+
+        <View style={[styles.statCard, { borderLeftColor: "#f59e0b" }]}>
+          <Ionicons name="wallet-outline" size={24} color="#f59e0b" />
+          <Text style={styles.statLabel}>Cash Received</Text>
+          <Text style={styles.statValue}>
+            ₹{(summary?.totalCashReceived || 0).toLocaleString("en-IN")}
+          </Text>
+        </View>
+
+        <View style={[styles.statCard, { borderLeftColor: "#8b5cf6" }]}>
+          <Ionicons name="swap-horizontal" size={24} color="#8b5cf6" />
+          <Text style={styles.statLabel}>Settlement</Text>
+          <Text
+            style={[
+              styles.statValue,
+              {
+                color:
+                  (summary?.cashSettlement || 0) >= 0
+                    ? "#ef4444"
+                    : "#22c55e",
+              },
+            ]}
+          >
+            ₹{(summary?.cashSettlement || 0).toLocaleString("en-IN")}
+          </Text>
+        </View>
+      </View>
+
+      {/* Extra Stats */}
+      <View style={styles.extraRow}>
+        <View style={styles.extraCard}>
+          <Ionicons name="flame-outline" size={20} color="rgba(249, 115, 22, 1)" />
+          <Text style={styles.extraLabel}>Gas</Text>
+          <Text style={styles.extraValue}>
+            ₹{(summary?.totalGas || 0).toLocaleString("en-IN")}
+          </Text>
+        </View>
+        <View style={styles.extraCard}>
+          <Ionicons name="navigate-outline" size={20} color="#06b6d4" />
+          <Text style={styles.extraLabel}>Toll</Text>
+          <Text style={styles.extraValue}>
+            ₹{(summary?.totalToll || 0).toLocaleString("en-IN")}
+          </Text>
+        </View>
+        <View style={styles.extraCard}>
+          <Ionicons name="document-text-outline" size={20} color="#a78bfa" />
+          <Text style={styles.extraLabel}>Entries</Text>
+          <Text style={styles.extraValue}>{summary?.entryCount || 0}</Text>
+        </View>
+      </View>
+
+      {/* Platform Breakdown */}
+      <View style={styles.sectionCard}>
+        <Text style={styles.sectionTitle}>Platform Breakdown</Text>
+        {platforms && (
+          <>
+            {renderPlatformBar("Uber", platforms.uber, "#000", summary?.totalFare)}
+            {renderPlatformBar("Ola", platforms.ola, "#fbbf24", summary?.totalFare)}
+            {renderPlatformBar("Rapido", platforms.rapido, "#f97316", summary?.totalFare)}
+            {renderPlatformBar("Direct", platforms.direct, "#22c55e", summary?.totalFare)}
+          </>
+        )}
+      </View>
+    </ScrollView>
+  );
+}
+
+function renderPlatformBar(
+  name: string,
+  value: number,
+  color: string,
+  total?: number
+) {
+  const pct = total && total > 0 ? (value / total) * 100 : 0;
+  return (
+    <View style={styles.barRow} key={name}>
+      <Text style={styles.barLabel}>{name}</Text>
+      <View style={styles.barTrack}>
+        <View
+          style={[
+            styles.barFill,
+            { width: `${Math.min(pct, 100)}%`, backgroundColor: color },
+          ]}
+        />
+      </View>
+      <Text style={styles.barValue}>₹{value.toLocaleString("en-IN")}</Text>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: "#0f172a",
+    padding: 16,
+  },
+  center: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#0f172a",
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: "800",
+    color: "#f8fafc",
+    marginBottom: 16,
+  },
+  timeframeRow: {
+    marginBottom: 20,
+    flexGrow: 0,
+  },
+  tfBtn: {
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    borderRadius: 10,
+    backgroundColor: "#1e293b",
+    marginRight: 8,
+  },
+  tfBtnActive: {
+    backgroundColor: "#3b82f6",
+  },
+  tfText: {
+    color: "#94a3b8",
+    fontWeight: "600",
+    fontSize: 14,
+  },
+  tfTextActive: {
+    color: "#fff",
+  },
+  grid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 12,
+    marginBottom: 16,
+  },
+  statCard: {
+    flex: 1,
+    minWidth: "45%",
+    backgroundColor: "#1e293b",
+    borderRadius: 14,
+    padding: 16,
+    borderLeftWidth: 4,
+  },
+  statLabel: {
+    fontSize: 12,
+    color: "#64748b",
+    marginTop: 8,
+  },
+  statValue: {
+    fontSize: 20,
+    fontWeight: "800",
+    color: "#f8fafc",
+    marginTop: 4,
+  },
+  extraRow: {
+    flexDirection: "row",
+    gap: 10,
+    marginBottom: 16,
+  },
+  extraCard: {
+    flex: 1,
+    backgroundColor: "#1e293b",
+    borderRadius: 12,
+    padding: 14,
+    alignItems: "center",
+  },
+  extraLabel: {
+    fontSize: 11,
+    color: "#64748b",
+    marginTop: 4,
+  },
+  extraValue: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#f8fafc",
+    marginTop: 2,
+  },
+  sectionCard: {
+    backgroundColor: "#1e293b",
+    borderRadius: 14,
+    padding: 16,
+    marginBottom: 16,
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#f8fafc",
+    marginBottom: 14,
+  },
+  barRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  barLabel: {
+    width: 56,
+    fontSize: 13,
+    color: "#94a3b8",
+  },
+  barTrack: {
+    flex: 1,
+    height: 10,
+    backgroundColor: "#0f172a",
+    borderRadius: 5,
+    marginHorizontal: 10,
+    overflow: "hidden",
+  },
+  barFill: {
+    height: "100%",
+    borderRadius: 5,
+  },
+  barValue: {
+    width: 70,
+    fontSize: 13,
+    color: "#f8fafc",
+    fontWeight: "600",
+    textAlign: "right",
+  },
+  runningBalanceCard: {
+    backgroundColor: "#1e293b",
+    padding: 18,
+    borderRadius: 14,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: "#334155",
+  },
+  runningBalanceLabel: {
+    color: "#94a3b8",
+    fontSize: 13,
+    fontWeight: "600",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+    marginBottom: 6,
+  },
+  runningBalanceValue: {
+    fontSize: 22,
+    fontWeight: "800",
+  },
+});
