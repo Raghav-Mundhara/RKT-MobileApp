@@ -17,6 +17,9 @@ export interface CalcInput {
   tip: number;
   driveAllowance: number;
   commission: number;
+  
+  maintenanceFee: number;
+  sharePercent: number;
 }
 
 export const calculate = (input: CalcInput) => {
@@ -24,8 +27,8 @@ export const calculate = (input: CalcInput) => {
     input.uber + input.ola + input.rapido + input.direct -
     input.driveAllowance - input.tip;
 
-  const balance = totalFare - input.gas - 160 - input.commission;
-  const share = Math.ceil(balance / 2);
+  const balance = totalFare - input.gas - input.maintenanceFee - input.commission;
+  const share = Math.ceil((balance * input.sharePercent) / 100);
 
   const totalCashReceived =
     input.uberCash + input.olaCash + input.rapidoCash + input.directCash;

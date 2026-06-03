@@ -8,6 +8,8 @@ export interface User {
   phone: string;
   role: Role;
   commissionPercent?: number;
+  maintenanceFee?: number;
+  sharePercent?: number;
   isActive?: boolean;
   createdAt?: string;
 }
@@ -35,6 +37,7 @@ export interface EntryInput {
   tip: number;
   driveAllowance: number;
   commission: number;
+  trips?: { customerTripId: string; fare: number; isCash: boolean }[];
 }
 
 export interface Entry extends EntryInput {
@@ -47,9 +50,12 @@ export interface Entry extends EntryInput {
   cashSettlement: number;
   status: "PENDING" | "APPROVED" | "REJECTED";
   isSettled: boolean;
+  maintenanceFee: number;
+  sharePercent: number;
   createdAt: string;
   updatedAt: string;
   driver?: { id: string; name: string; phone: string };
+  entryTrips?: EntryTrip[];
 }
 
 export interface PaginatedEntries {
@@ -121,6 +127,18 @@ export interface DriverAnalytics {
 
 // ─── Vehicle Types ──────────────────────────────────────
 
+export interface VehicleService {
+  id: string;
+  vehicleId: string;
+  serviceDate: string;
+  description: string;
+  cost: number;
+  odometer?: number;
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface Vehicle {
   id: string;
   numberPlate: string;
@@ -129,7 +147,41 @@ export interface Vehicle {
   isActive: boolean;
   assignedDriverId?: string;
   assignedDriver?: { id: string; name: string; phone: string };
+  services?: VehicleService[];
   createdAt: string;
+}
+
+// ─── Customer & Trips ───────────────────────────────
+
+export interface Customer {
+  id: string;
+  name: string;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+  trips?: CustomerTrip[];
+}
+
+export interface CustomerTrip {
+  id: string;
+  customerId: string;
+  destination: string;
+  fare: number;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface EntryTrip {
+  id: string;
+  entryId: string;
+  customerTripId: string;
+  customerId: string;
+  fare: number;
+  date: string;
+  createdAt: string;
+  customer?: Customer;
+  customerTrip?: CustomerTrip;
 }
 
 // ─── Driver (admin listing) ─────────────────────────────
@@ -139,6 +191,8 @@ export interface DriverListItem {
   name: string;
   phone: string;
   commissionPercent: number;
+  maintenanceFee: number;
+  sharePercent: number;
   isActive: boolean;
   createdAt: string;
   _count: { entries: number };

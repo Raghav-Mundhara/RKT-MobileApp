@@ -1,7 +1,30 @@
 import { create } from "zustand";
 import * as SecureStore from "expo-secure-store";
+import { Platform } from "react-native";
 import api, { setApiConfig } from "../services/api";
 import { User, LoginResponse } from "../types";
+
+const isWeb = Platform.OS === "web" || (typeof window !== "undefined" && typeof window.localStorage !== "undefined");
+
+const safeDeleteSecret = async (key: string) => {
+  if (isWeb) {
+    try {
+      if (typeof window !== "undefined" && window.localStorage) {
+        window.localStorage.removeItem(key);
+      }
+    } catch (e) {
+      console.warn("localStorage deletion failed:", e);
+    }
+  } else {
+    try {
+      if (SecureStore && typeof SecureStore.deleteItemAsync === "function") {
+        await SecureStore.deleteItemAsync(key);
+      }
+    } catch (e) {
+      console.warn("SecureStore deletion failed:", e);
+    }
+  }
+};
 
 interface AuthState {
   user: User | null;
@@ -42,8 +65,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   logout: async () => {
     setApiConfig(null);
-    await SecureStore.deleteItemAsync("token");
-    await SecureStore.deleteItemAsync("user");
+    await safeDeleteSecret("token");
+    await safeDeleteSecret("user");
     set({
       user: null,
       token: null,
@@ -53,12 +76,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   loadFromStorage: async () => {
     // We clear any existing old session to enforce auto-logout on fresh app starts
-    try {
-      await SecureStore.deleteItemAsync("token");
-      await SecureStore.deleteItemAsync("user");
-    } catch {
-      // ignore
-    }
+    await safeDeleteSecret("token");
+    await safeDeleteSecret("user");
     setApiConfig(null);
     set({ isLoading: false });
   },

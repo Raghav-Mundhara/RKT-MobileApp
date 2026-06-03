@@ -20,13 +20,16 @@ export default function DriversScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [showModal, setShowModal] = useState(false);
+  const [editingDriver, setEditingDriver] = useState<DriverListItem | null>(null);
   const [form, setForm] = useState({
     name: "",
     phone: "",
     password: "",
     commissionPercent: "0",
+    maintenanceFee: "160",
+    sharePercent: "50",
   });
-  const [creating, setCreating] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   const fetchDrivers = useCallback(async (isRefresh = false) => {
     try {
@@ -47,27 +50,67 @@ export default function DriversScreen() {
     fetchDrivers();
   }, []);
 
-  const createDriver = async () => {
-    if (!form.name || !form.phone || !form.password) {
-      Alert.alert("Error", "All fields are required");
+  const openAddModal = () => {
+    setEditingDriver(null);
+    setForm({
+      name: "",
+      phone: "",
+      password: "",
+      commissionPercent: "0",
+      maintenanceFee: "160",
+      sharePercent: "50",
+    });
+    setShowModal(true);
+  };
+
+  const openEditModal = (driver: DriverListItem) => {
+    setEditingDriver(driver);
+    setForm({
+      name: driver.name,
+      phone: driver.phone,
+      password: "", // leave empty to keep unchanged
+      commissionPercent: String(driver.commissionPercent),
+      maintenanceFee: String(driver.maintenanceFee ?? 160),
+      sharePercent: String(driver.sharePercent ?? 50),
+    });
+    setShowModal(true);
+  };
+
+  const saveDriver = async () => {
+    if (!form.name || !form.phone || (!editingDriver && !form.password)) {
+      Alert.alert("Error", "Name, phone and password (for new driver) are required");
       return;
     }
-    setCreating(true);
+    setSaving(true);
     try {
-      await api.post("/admin/drivers", {
-        name: form.name,
-        phone: form.phone,
-        password: form.password,
-        commissionPercent: Number(form.commissionPercent) || 0,
-      });
-      Alert.alert("Success", "Driver created");
+      if (editingDriver) {
+        // Update existing driver
+        await api.put(`/admin/drivers/${editingDriver.id}`, {
+          name: form.name,
+          commissionPercent: Number(form.commissionPercent) || 0,
+          maintenanceFee: Number(form.maintenanceFee) || 0,
+          sharePercent: Number(form.sharePercent) || 0,
+          password: form.password || undefined, // only update password if filled
+        });
+        Alert.alert("Success", "Driver updated");
+      } else {
+        // Create new driver
+        await api.post("/admin/drivers", {
+          name: form.name,
+          phone: form.phone,
+          password: form.password,
+          commissionPercent: Number(form.commissionPercent) || 0,
+          maintenanceFee: Number(form.maintenanceFee) || 160,
+          sharePercent: Number(form.sharePercent) || 50,
+        });
+        Alert.alert("Success", "Driver created");
+      }
       setShowModal(false);
-      setForm({ name: "", phone: "", password: "", commissionPercent: "0" });
       fetchDrivers();
     } catch (error: any) {
-      Alert.alert("Error", error.response?.data?.message || "Failed");
+      Alert.alert("Error", error.response?.data?.message || "Failed to save driver");
     } finally {
-      setCreating(false);
+      setSaving(false);
     }
   };
 
@@ -94,34 +137,49 @@ export default function DriversScreen() {
           <Text style={styles.name}>{item.name}</Text>
           <Text style={styles.phone}>{item.phone}</Text>
         </View>
-        <TouchableOpacity
-          style={[
-            styles.statusBtn,
-            { backgroundColor: item.isActive ? "#22c55e20" : "#ef444420" },
-          ]}
-          onPress={() => toggleActive(item)}
-        >
-          <Text
-            style={{
-              color: item.isActive ? "#22c55e" : "#ef4444",
-              fontSize: 12,
-              fontWeight: "700",
-            }}
+        <View style={styles.cardActions}>
+          <TouchableOpacity
+            style={[styles.actionIconBtn, { marginRight: 8 }]}
+            onPress={() => openEditModal(item)}
           >
-            {item.isActive ? "Active" : "Inactive"}
-          </Text>
-        </TouchableOpacity>
+            <Ionicons name="create-outline" size={18} color="#3b82f6" />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.statusBtn,
+              { backgroundColor: item.isActive ? "#22c55e20" : "#ef444420" },
+            ]}
+            onPress={() => toggleActive(item)}
+          >
+            <Text
+              style={{
+                color: item.isActive ? "#22c55e" : "#ef4444",
+                fontSize: 12,
+                fontWeight: "700",
+              }}
+            >
+              {item.isActive ? "Active" : "Inactive"}
+            </Text>
+          </TouchableOpacity>
+        </View>
       </View>
-      <View style={styles.metaRow}>
-        <Text style={styles.meta}>
-          Commission: {item.commissionPercent}%
-        </Text>
-        <Text style={styles.meta}>
-          Entries: {item._count.entries}
-        </Text>
-        <Text style={styles.meta}>
-          Since: {new Date(item.createdAt).toLocaleDateString("en-IN")}
-        </Text>
+      <View style={styles.metaGrid}>
+        <View style={styles.metaColumn}>
+          <Text style={styles.metaLabel}>Commission</Text>
+          <Text style={styles.metaValue}>{item.commissionPercent}%</Text>
+        </View>
+        <View style={styles.metaColumn}>
+          <Text style={styles.metaLabel}>Maintenance</Text>
+          <Text style={styles.metaValue}>₹{item.maintenanceFee ?? 160}</Text>
+        </View>
+        <View style={styles.metaColumn}>
+          <Text style={styles.metaLabel}>Sharing</Text>
+          <Text style={styles.metaValue}>{item.sharePercent ?? 50}%</Text>
+        </View>
+        <View style={styles.metaColumn}>
+          <Text style={styles.metaLabel}>Entries</Text>
+          <Text style={styles.metaValue}>{item._count.entries}</Text>
+        </View>
       </View>
     </View>
   );
@@ -158,16 +216,18 @@ export default function DriversScreen() {
       {/* FAB */}
       <TouchableOpacity
         style={styles.fab}
-        onPress={() => setShowModal(true)}
+        onPress={openAddModal}
       >
         <Ionicons name="person-add" size={24} color="#fff" />
       </TouchableOpacity>
 
-      {/* Create Driver Modal */}
+      {/* Create / Edit Driver Modal */}
       <Modal visible={showModal} transparent animationType="slide">
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Add Driver</Text>
+            <Text style={styles.modalTitle}>
+              {editingDriver ? "Edit Driver" : "Add Driver"}
+            </Text>
 
             <TextInput
               style={styles.modalInput}
@@ -177,32 +237,65 @@ export default function DriversScreen() {
               onChangeText={(v) => setForm({ ...form, name: v })}
             />
             <TextInput
-              style={styles.modalInput}
+              style={[styles.modalInput, editingDriver && { opacity: 0.6 }]}
               placeholder="Phone"
               placeholderTextColor="#64748b"
               keyboardType="phone-pad"
               value={form.phone}
               onChangeText={(v) => setForm({ ...form, phone: v })}
               maxLength={10}
+              editable={!editingDriver}
             />
             <TextInput
               style={styles.modalInput}
-              placeholder="Password"
+              placeholder={editingDriver ? "New Password (optional)" : "Password"}
               placeholderTextColor="#64748b"
               secureTextEntry
               value={form.password}
               onChangeText={(v) => setForm({ ...form, password: v })}
             />
-            <TextInput
-              style={styles.modalInput}
-              placeholder="Commission %"
-              placeholderTextColor="#64748b"
-              keyboardType="numeric"
-              value={form.commissionPercent}
-              onChangeText={(v) =>
-                setForm({ ...form, commissionPercent: v })
-              }
-            />
+            
+            <View style={{ flexDirection: "row", gap: 10 }}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.inputLabel}>Commission %</Text>
+                <TextInput
+                  style={styles.modalInput}
+                  placeholder="Commission %"
+                  placeholderTextColor="#64748b"
+                  keyboardType="numeric"
+                  value={form.commissionPercent}
+                  onChangeText={(v) =>
+                    setForm({ ...form, commissionPercent: v })
+                  }
+                />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.inputLabel}>Maint. Fee (₹)</Text>
+                <TextInput
+                  style={styles.modalInput}
+                  placeholder="Maint. Fee"
+                  placeholderTextColor="#64748b"
+                  keyboardType="numeric"
+                  value={form.maintenanceFee}
+                  onChangeText={(v) =>
+                    setForm({ ...form, maintenanceFee: v })
+                  }
+                />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.inputLabel}>Sharing %</Text>
+                <TextInput
+                  style={styles.modalInput}
+                  placeholder="Sharing %"
+                  placeholderTextColor="#64748b"
+                  keyboardType="numeric"
+                  value={form.sharePercent}
+                  onChangeText={(v) =>
+                    setForm({ ...form, sharePercent: v })
+                  }
+                />
+              </View>
+            </View>
 
             <View style={styles.modalBtnRow}>
               <TouchableOpacity
@@ -212,14 +305,16 @@ export default function DriversScreen() {
                 <Text style={styles.cancelText}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.createBtn, creating && { opacity: 0.6 }]}
-                onPress={createDriver}
-                disabled={creating}
+                style={[styles.createBtn, saving && { opacity: 0.6 }]}
+                onPress={saveDriver}
+                disabled={saving}
               >
-                {creating ? (
+                {saving ? (
                   <ActivityIndicator color="#fff" />
                 ) : (
-                  <Text style={styles.createText}>Create</Text>
+                  <Text style={styles.createText}>
+                    {editingDriver ? "Save" : "Create"}
+                  </Text>
                 )}
               </TouchableOpacity>
             </View>
@@ -289,13 +384,44 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: 8,
   },
-  metaRow: {
+  cardActions: {
     flexDirection: "row",
-    gap: 16,
+    alignItems: "center",
   },
-  meta: {
-    fontSize: 12,
+  actionIconBtn: {
+    padding: 6,
+    borderRadius: 6,
+    backgroundColor: "#3b82f615",
+  },
+  metaGrid: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    backgroundColor: "#0f172a50",
+    borderRadius: 10,
+    padding: 10,
+    marginTop: 4,
+  },
+  metaColumn: {
+    alignItems: "center",
+    flex: 1,
+  },
+  metaLabel: {
+    fontSize: 10,
     color: "#64748b",
+    textTransform: "uppercase",
+    fontWeight: "600",
+    marginBottom: 2,
+  },
+  metaValue: {
+    fontSize: 13,
+    color: "#f8fafc",
+    fontWeight: "700",
+  },
+  inputLabel: {
+    fontSize: 12,
+    color: "#94a3b8",
+    marginBottom: 6,
+    fontWeight: "600",
   },
   fab: {
     position: "absolute",
@@ -343,7 +469,7 @@ const styles = StyleSheet.create({
   modalBtnRow: {
     flexDirection: "row",
     gap: 12,
-    marginTop: 8,
+    marginTop: 12,
   },
   cancelBtn: {
     flex: 1,

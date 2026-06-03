@@ -75,7 +75,7 @@ export default function MyEntriesScreen() {
   const EntryCard = ({ item }: { item: Entry }) => {
     const [expanded, setExpanded] = useState(false);
 
-    const date = new Date(item.date).toLocaleDateString("en-IN", {
+    const date = new Date(item.date || "").toLocaleDateString("en-IN", {
       day: "2-digit",
       month: "short",
       year: "numeric",
@@ -183,7 +183,7 @@ export default function MyEntriesScreen() {
                 </View>
                 <View style={styles.row}>
                   <Text style={styles.label}>Maintainance</Text>
-                  <Text style={styles.value}>₹ 160</Text>
+                  <Text style={styles.value}>₹ {item.maintenanceFee}</Text>
                 </View>
                 <View style={styles.row}>
                   <Text style={styles.label}>Commission</Text>
@@ -197,9 +197,24 @@ export default function MyEntriesScreen() {
                   <Text style={styles.footerValue}>₹ {item.balance}</Text>
                 </View>
                 <View style={styles.row}>
-                  <Text style={styles.footerLabel}>50% Share</Text>
+                  <Text style={styles.footerLabel}>{item.sharePercent}% Share</Text>
                   <Text style={styles.footerValue}>₹ {item.share}</Text>
                 </View>
+
+                {item.entryTrips && item.entryTrips.length > 0 && (
+                  <>
+                    <View style={styles.divider} />
+                    <Text style={styles.gridHeader}>Customer Trips</Text>
+                    {item.entryTrips.map((et) => (
+                      <View style={styles.row} key={et.id}>
+                        <Text style={[styles.label, { color: "#06b6d4", flex: 1, marginRight: 8 }]} numberOfLines={1}>
+                          {et.customer?.name}: {et.customerTrip?.destination}
+                        </Text>
+                        <Text style={styles.value}>₹ {et.fare}</Text>
+                      </View>
+                    ))}
+                  </>
+                )}
               </View>
 
               {/* Cash Settlement */}
