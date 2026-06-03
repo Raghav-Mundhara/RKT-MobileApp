@@ -11,10 +11,12 @@ import {
   TextInput,
   Modal,
   ScrollView,
+  Platform,
 } from "react-native";
 import api from "../../services/api";
 import { Customer, CustomerTrip, Timeframe } from "../../types";
 import { Ionicons } from "@expo/vector-icons";
+import DateTimePicker from "@react-native-community/datetimepicker";
 
 const TIMEFRAMES: { label: string; value: Timeframe }[] = [
   { label: "Today", value: "today" },
@@ -22,7 +24,21 @@ const TIMEFRAMES: { label: string; value: Timeframe }[] = [
   { label: "Month", value: "month" },
   { label: "Year", value: "year" },
   { label: "All", value: "all" },
+  { label: "Custom", value: "custom" },
 ];
+
+const webInputStyle = {
+  backgroundColor: "#0f172a",
+  color: "#f8fafc",
+  borderWidth: "1px",
+  borderStyle: "solid",
+  borderColor: "#334155",
+  padding: "10px",
+  borderRadius: "10px",
+  fontSize: "14px",
+  outline: "none",
+  width: "100%",
+};
 
 export default function CustomersScreen() {
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -54,6 +70,16 @@ export default function CustomersScreen() {
   } | null>(null);
   const [loadingAnalytics, setLoadingAnalytics] = useState(false);
 
+  // Custom date range state
+  const [startDate, setStartDate] = useState<Date>(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 30);
+    return d;
+  });
+  const [endDate, setEndDate] = useState<Date>(() => new Date());
+  const [showStartPicker, setShowStartPicker] = useState(false);
+  const [showEndPicker, setShowEndPicker] = useState(false);
+
   const fetchCustomers = useCallback(async (isRefresh = false) => {
     try {
       if (isRefresh) setRefreshing(true);
@@ -75,11 +101,16 @@ export default function CustomersScreen() {
     }
   }, [customers, selectedCust]);
 
-  const fetchCustomerAnalytics = useCallback(async (customerId: string, tf: Timeframe) => {
+  const fetchCustomerAnalytics = useCallback(async (customerId: string, tf: Timeframe, start = startDate, end = endDate) => {
     setLoadingAnalytics(true);
     try {
+      const params: any = { timeframe: tf };
+      if (tf === "custom") {
+        params.startDate = start.toISOString().split("T")[0];
+        params.endDate = end.toISOString().split("T")[0];
+      }
       const { data } = await api.get(`/analytics/customers/${customerId}`, {
-        params: { timeframe: tf }
+        params
       });
       setAnalyticsData({
         summary: data.summary,
@@ -90,7 +121,7 @@ export default function CustomersScreen() {
     } finally {
       setLoadingAnalytics(false);
     }
-  }, []);
+  }, [startDate, endDate]);
 
   useEffect(() => {
     fetchCustomers();
@@ -99,9 +130,9 @@ export default function CustomersScreen() {
   // Whenever selected customer or timeframe changes, load analytics if dashboard subtab active
   useEffect(() => {
     if (selectedCust && activeSubTab === "dashboard") {
-      fetchCustomerAnalytics(selectedCust.id, analyticsTimeframe);
+      fetchCustomerAnalytics(selectedCust.id, analyticsTimeframe, startDate, endDate);
     }
-  }, [selectedCust?.id, activeSubTab, analyticsTimeframe]);
+  }, [selectedCust?.id, activeSubTab, analyticsTimeframe, startDate, endDate, fetchCustomerAnalytics]);
 
   const createCustomer = async () => {
     if (!custName.trim()) {
@@ -427,6 +458,91 @@ export default function CustomersScreen() {
                     </TouchableOpacity>
                   ))}
                 </ScrollView>
+
+                {/* Custom Date Range Picker */}
+                {analyticsTimeframe === "custom" && (
+                  <View style={styles.customDateContainer}>
+                    <View style={styles.datePickerCol}>
+                      <Text style={styles.datePickerLabel}>Start Date</Text>
+                      {Platform.OS === "web" ? (
+                        <input
+                          type="date"
+                          value={startDate.toISOString().split("T")[0]}
+                          onChange={(e) => {
+                            const d = new Date(e.target.value);
+                            if (!isNaN(d.getTime())) {
+                              setStartDate(d);
+                              if (selectedCust) fetchCustomerAnalytics(selectedCust.id, "custom", d, endDate);
+                            }
+                          }}
+                          style={webInputStyle}
+                        />
+                      ) : (
+                        <TouchableOpacity
+                          style={styles.customDateBtn}
+                          onPress={() => setShowStartPicker(true)}
+                        >
+                          <Ionicons name="calendar-outline" size={16} color="#94a3b8" />
+                          <Text style={styles.customDateBtnText}>{startDate.toLocaleDateString("en-IN")}</Text>
+                        </TouchableOpacity>
+                      )}
+                      {Platform.OS !== "web" && showStartPicker && (
+                        <DateTimePicker
+                          value={startDate}
+                          mode="date"
+                          display="default"
+                          onChange={(_, selectedDate) => {
+                            setShowStartPicker(false);
+                            if (selectedDate) {
+                              setStartDate(selectedDate);
+                              if (selectedCust) fetchCustomerAnalytics(selectedCust.id, "custom", selectedDate, endDate);
+                            }
+                          }}
+                        />
+                      )}
+                    </View>
+
+                    <View style={styles.datePickerCol}>
+                      <Text style={styles.datePickerLabel}>End Date</Text>
+                      {Platform.OS === "web" ? (
+                        <input
+                          type="date"
+                          value={endDate.toISOString().split("T")[0]}
+                          onChange={(e) => {
+                            const d = new Date(e.target.value);
+                            if (!isNaN(d.getTime())) {
+                              setEndDate(d);
+                              if (selectedCust) fetchCustomerAnalytics(selectedCust.id, "custom", startDate, d);
+                            }
+                          }}
+                          style={webInputStyle}
+                        />
+                      ) : (
+                        <TouchableOpacity
+                          style={styles.customDateBtn}
+                          onPress={() => setShowEndPicker(true)}
+                        >
+                          <Ionicons name="calendar-outline" size={16} color="#94a3b8" />
+                          <Text style={styles.customDateBtnText}>{endDate.toLocaleDateString("en-IN")}</Text>
+                        </TouchableOpacity>
+                      )}
+                      {Platform.OS !== "web" && showEndPicker && (
+                        <DateTimePicker
+                          value={endDate}
+                          mode="date"
+                          display="default"
+                          onChange={(_, selectedDate) => {
+                            setShowEndPicker(false);
+                            if (selectedDate) {
+                              setEndDate(selectedDate);
+                              if (selectedCust) fetchCustomerAnalytics(selectedCust.id, "custom", startDate, selectedDate);
+                            }
+                          }}
+                        />
+                      )}
+                    </View>
+                  </View>
+                )}
 
                 {loadingAnalytics ? (
                   <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
@@ -869,6 +985,42 @@ const styles = StyleSheet.create({
   historyMetaText: {
     color: "#64748b",
     fontSize: 11,
+    fontWeight: "600",
+  },
+  customDateContainer: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    backgroundColor: "#1e293b",
+    padding: 14,
+    borderRadius: 14,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: "#334155",
+    gap: 12,
+  },
+  datePickerCol: {
+    flex: 1,
+  },
+  datePickerLabel: {
+    color: "#94a3b8",
+    fontSize: 12,
+    fontWeight: "700",
+    marginBottom: 6,
+    textTransform: "uppercase",
+  },
+  customDateBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#0f172a",
+    borderWidth: 1,
+    borderColor: "#334155",
+    borderRadius: 10,
+    padding: 10,
+    gap: 8,
+  },
+  customDateBtnText: {
+    color: "#f8fafc",
+    fontSize: 14,
     fontWeight: "600",
   },
 });

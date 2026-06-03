@@ -165,10 +165,6 @@ export default function DriversScreen() {
       </View>
       <View style={styles.metaGrid}>
         <View style={styles.metaColumn}>
-          <Text style={styles.metaLabel}>Commission</Text>
-          <Text style={styles.metaValue}>{item.commissionPercent}%</Text>
-        </View>
-        <View style={styles.metaColumn}>
           <Text style={styles.metaLabel}>Maintenance</Text>
           <Text style={styles.metaValue}>₹{item.maintenanceFee ?? 160}</Text>
         </View>
@@ -257,23 +253,10 @@ export default function DriversScreen() {
             
             <View style={{ flexDirection: "row", gap: 10 }}>
               <View style={{ flex: 1 }}>
-                <Text style={styles.inputLabel}>Commission %</Text>
+                <Text style={styles.inputLabel}>Maintainance</Text>
                 <TextInput
                   style={styles.modalInput}
-                  placeholder="Commission %"
-                  placeholderTextColor="#64748b"
-                  keyboardType="numeric"
-                  value={form.commissionPercent}
-                  onChangeText={(v) =>
-                    setForm({ ...form, commissionPercent: v })
-                  }
-                />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.inputLabel}>Maint. Fee (₹)</Text>
-                <TextInput
-                  style={styles.modalInput}
-                  placeholder="Maint. Fee"
+                  placeholder="Maintainance"
                   placeholderTextColor="#64748b"
                   keyboardType="numeric"
                   value={form.maintenanceFee}

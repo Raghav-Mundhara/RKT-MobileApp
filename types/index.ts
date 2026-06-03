@@ -67,7 +67,7 @@ export interface PaginatedEntries {
 
 // ─── Analytics Types ────────────────────────────────────
 
-export type Timeframe = "today" | "week" | "month" | "year" | "all";
+export type Timeframe = "today" | "week" | "month" | "year" | "all" | "custom";
 
 export interface AnalyticsSummary {
   totalFare: number;

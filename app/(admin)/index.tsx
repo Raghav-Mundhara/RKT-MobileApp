@@ -7,12 +7,14 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   RefreshControl,
+  Platform,
 } from "react-native";
 import api from "../../services/api";
 import { OverviewAnalytics, Timeframe } from "../../types";
 import { Ionicons } from "@expo/vector-icons";
 import { useAuthStore } from "../../store/authStore";
 import { useFocusEffect } from "expo-router";
+import DateTimePicker from "@react-native-community/datetimepicker";
 
 const TIMEFRAMES: { label: string; value: Timeframe }[] = [
   { label: "Today", value: "today" },
@@ -20,23 +22,54 @@ const TIMEFRAMES: { label: string; value: Timeframe }[] = [
   { label: "Month", value: "month" },
   { label: "Year", value: "year" },
   { label: "All", value: "all" },
+  { label: "Custom", value: "custom" },
 ];
+
+const webInputStyle = {
+  backgroundColor: "#0f172a",
+  color: "#f8fafc",
+  borderWidth: "1px",
+  borderStyle: "solid",
+  borderColor: "#334155",
+  padding: "10px",
+  borderRadius: "10px",
+  fontSize: "14px",
+  outline: "none",
+  width: "100%",
+};
 
 export default function AdminDashboard() {
   const [data, setData] = useState<OverviewAnalytics | null>(null);
   const [timeframe, setTimeframe] = useState<Timeframe>("month");
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  
+  // Custom date range state
+  const [startDate, setStartDate] = useState<Date>(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 30);
+    return d;
+  });
+  const [endDate, setEndDate] = useState<Date>(() => new Date());
+  const [showStartPicker, setShowStartPicker] = useState(false);
+  const [showEndPicker, setShowEndPicker] = useState(false);
+
   const logout = useAuthStore((s) => s.logout);
 
-  const fetchData = async (tf: Timeframe, isRefresh = false) => {
+  const fetchData = async (tf: Timeframe, isRefresh = false, start = startDate, end = endDate) => {
     try {
       if (isRefresh) setRefreshing(true);
       else if (!data) setLoading(true); // only show loading indicator if no data yet
 
+      const params: any = { timeframe: tf };
+      if (tf === "custom") {
+        params.startDate = start.toISOString().split("T")[0];
+        params.endDate = end.toISOString().split("T")[0];
+      }
+
       const { data: res } = await api.get<OverviewAnalytics>(
         "/analytics/overview",
-        { params: { timeframe: tf } }
+        { params }
       );
       setData(res);
     } catch (error) {
@@ -49,8 +82,8 @@ export default function AdminDashboard() {
 
   useFocusEffect(
     useCallback(() => {
-      fetchData(timeframe);
-    }, [timeframe])
+      fetchData(timeframe, false, startDate, endDate);
+    }, [timeframe, startDate, endDate])
   );
 
   if (loading && !data) {
@@ -113,6 +146,91 @@ export default function AdminDashboard() {
           </TouchableOpacity>
         ))}
       </ScrollView>
+
+      {/* Custom Date Range Picker */}
+      {timeframe === "custom" && (
+        <View style={styles.customDateContainer}>
+          <View style={styles.datePickerCol}>
+            <Text style={styles.datePickerLabel}>Start Date</Text>
+            {Platform.OS === "web" ? (
+              <input
+                type="date"
+                value={startDate.toISOString().split("T")[0]}
+                onChange={(e) => {
+                  const d = new Date(e.target.value);
+                  if (!isNaN(d.getTime())) {
+                    setStartDate(d);
+                    fetchData("custom", false, d, endDate);
+                  }
+                }}
+                style={webInputStyle}
+              />
+            ) : (
+              <TouchableOpacity
+                style={styles.customDateBtn}
+                onPress={() => setShowStartPicker(true)}
+              >
+                <Ionicons name="calendar-outline" size={16} color="#94a3b8" />
+                <Text style={styles.customDateBtnText}>{startDate.toLocaleDateString("en-IN")}</Text>
+              </TouchableOpacity>
+            )}
+            {Platform.OS !== "web" && showStartPicker && (
+              <DateTimePicker
+                value={startDate}
+                mode="date"
+                display="default"
+                onChange={(_, selectedDate) => {
+                  setShowStartPicker(false);
+                  if (selectedDate) {
+                    setStartDate(selectedDate);
+                    fetchData("custom", false, selectedDate, endDate);
+                  }
+                }}
+              />
+            )}
+          </View>
+
+          <View style={styles.datePickerCol}>
+            <Text style={styles.datePickerLabel}>End Date</Text>
+            {Platform.OS === "web" ? (
+              <input
+                type="date"
+                value={endDate.toISOString().split("T")[0]}
+                onChange={(e) => {
+                  const d = new Date(e.target.value);
+                  if (!isNaN(d.getTime())) {
+                    setEndDate(d);
+                    fetchData("custom", false, startDate, d);
+                  }
+                }}
+                style={webInputStyle}
+              />
+            ) : (
+              <TouchableOpacity
+                style={styles.customDateBtn}
+                onPress={() => setShowEndPicker(true)}
+              >
+                <Ionicons name="calendar-outline" size={16} color="#94a3b8" />
+                <Text style={styles.customDateBtnText}>{endDate.toLocaleDateString("en-IN")}</Text>
+              </TouchableOpacity>
+            )}
+            {Platform.OS !== "web" && showEndPicker && (
+              <DateTimePicker
+                value={endDate}
+                mode="date"
+                display="default"
+                onChange={(_, selectedDate) => {
+                  setShowEndPicker(false);
+                  if (selectedDate) {
+                    setEndDate(selectedDate);
+                    fetchData("custom", false, startDate, selectedDate);
+                  }
+                }}
+              />
+            )}
+          </View>
+        </View>
+      )}
 
       {/* Fleet Unsettled Balance Banner */}
       {data && (
@@ -481,5 +599,41 @@ const styles = StyleSheet.create({
   runningBalanceValue: {
     fontSize: 22,
     fontWeight: "800",
+  },
+  customDateContainer: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    backgroundColor: "#1e293b",
+    padding: 14,
+    borderRadius: 14,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: "#334155",
+    gap: 12,
+  },
+  datePickerCol: {
+    flex: 1,
+  },
+  datePickerLabel: {
+    color: "#94a3b8",
+    fontSize: 12,
+    fontWeight: "700",
+    marginBottom: 6,
+    textTransform: "uppercase",
+  },
+  customDateBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#0f172a",
+    borderWidth: 1,
+    borderColor: "#334155",
+    borderRadius: 10,
+    padding: 10,
+    gap: 8,
+  },
+  customDateBtnText: {
+    color: "#f8fafc",
+    fontSize: 14,
+    fontWeight: "600",
   },
 });

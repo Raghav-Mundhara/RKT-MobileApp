@@ -1,8 +1,35 @@
 import axios from "axios";
-import * as SecureStore from "expo-secure-store";
+import { Platform } from "react-native";
+import Constants from "expo-constants";
 
-// Change this to your backend URL
-const BASE_URL = "http://localhost:5000/api";
+// ─── Resolve Base URL ────────────────────────────────────
+
+function getBaseUrl(): string {
+  // 1. Always prefer an explicit env var (set this in eas.json for each profile)
+  if (process.env.EXPO_PUBLIC_BACKEND_URL) {
+    return process.env.EXPO_PUBLIC_BACKEND_URL;
+  }
+
+  // 2. Dev only: dynamically resolve LAN IP from Expo Go runtime
+  if (__DEV__) {
+    if (Platform.OS === "android") {
+      const debuggerHost =
+        (Constants.manifest2 as any)?.extra?.expoGo?.debuggerHost?.split(":")[0] ||
+        (Constants.expoConfig as any)?.hostUri?.split(":")[0];
+
+      if (debuggerHost) return `http://${debuggerHost}:5000/api`;
+      return "http://10.0.2.2:5000/api"; // emulator fallback
+    }
+    return "http://localhost:5000/api"; // iOS simulator
+  }
+
+  // 3. Prod build with no env var — fail loudly at startup
+  throw new Error(
+    "EXPO_PUBLIC_BACKEND_URL is not set. Add it to your eas.json env config."
+  );
+}
+
+const BASE_URL = getBaseUrl();
 
 const api = axios.create({
   baseURL: BASE_URL,
